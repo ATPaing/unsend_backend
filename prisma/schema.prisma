@@ -1,0 +1,183 @@
+// Unsend — Prisma schema (MySQL / MariaDB)
+// Source design: docs/mE - DB Schema V1.pdf + auth decisions from docs/API.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum JournalType {
+  JOURNAL   @map("journal")
+  T_CAPSULE @map("t_capsule")
+
+  @@map("journal_type")
+}
+
+enum NotificationType {
+  FRI_REQ        @map("fri_req")
+  FRI_ACCEPTED   @map("fri_accepted")
+  JOURNAL_SHARED @map("journal_shared")
+
+  @@map("notification_type")
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id                  Int      @id @default(autoincrement())
+  username            String   @db.VarChar(50)
+  normalizedUsername  String   @unique @map("normalized_username") @db.VarChar(50)
+  passwordHash        String   @map("password_hash") @db.VarChar(255)
+  publicKey           Bytes    @map("public_key")
+  encryptedPrivateKey Bytes    @map("encrypted_private_key")
+  derivedKeySalt      Bytes    @map("derived_key_salt")
+  privateKeyNonce     Bytes    @map("private_key_nonce")
+  cryptoVersion       Int      @default(1) @map("crypto_version")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  sessions                 Session[]
+  journals                 Journal[]       @relation("JournalOwner")
+  journalAccess            JournalAccess[]
+  friendRequestsAsUserA    FriendRequest[] @relation("FriendRequestUserA")
+  friendRequestsAsUserB    FriendRequest[] @relation("FriendRequestUserB")
+  friendRequestsInitiated  FriendRequest[] @relation("FriendRequestInitiator")
+  friendshipsAsUserA       Friendship[]    @relation("FriendshipUserA")
+  friendshipsAsUserB       Friendship[]    @relation("FriendshipUserB")
+  notificationsReceived    Notification[]  @relation("NotificationRecipient")
+  notificationsActed       Notification[]  @relation("NotificationActor")
+
+  @@map("users")
+}
+
+model Journal {
+  id                   Int         @id @default(autoincrement())
+  encryptedTitle       Bytes       @map("encrypted_title")
+  titleNonce           Bytes       @map("title_nonce")
+  encryptedContent     Bytes       @map("encrypted_content")
+  contentNonce         Bytes       @map("content_nonce")
+  ownerEncryptedAesKey Bytes       @map("owner_encrypted_aes_key")
+  createdBy            Int         @map("created_by")
+  journalType          JournalType @map("journal_type")
+  unlockAt             DateTime?   @map("unlock_at")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  owner         User            @relation("JournalOwner", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  media         Media[]
+  accessEntries JournalAccess[]
+  notifications Notification[]
+
+  @@index([createdBy])
+  @@index([journalType, unlockAt])
+  @@map("journals")
+}
+
+model Media {
+  id                Int      @id @default(autoincrement())
+  journalId         Int      @map("journal_id")
+  encryptedMime     Bytes    @map("encrypted_mime")
+  mimeNonce         Bytes    @map("mime_nonce")
+  storageKey        String   @unique @map("storage_key") @db.VarChar(512)
+  encryptedFileName Bytes    @map("encrypted_file_name")
+  fileNameNonce     Bytes    @map("file_name_nonce")
+  fileNonce         Bytes    @map("file_nonce")
+  size              Int
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  journal Journal @relation(fields: [journalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([journalId])
+  @@map("media")
+}
+
+model JournalAccess {
+  id                    Int      @id @default(autoincrement())
+  journalId             Int      @map("journal_id")
+  userId                Int      @map("user_id")
+  viewerEncryptedAesKey Bytes    @map("viewer_encrypted_aes_key")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  journal Journal @relation(fields: [journalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([journalId, userId])
+  @@index([userId])
+  @@map("journal_access")
+}
+
+model FriendRequest {
+  id          Int      @id @default(autoincrement())
+  userAId     Int      @map("user_a_id")
+  userBId     Int      @map("user_b_id")
+  initiatorId Int      @map("initiator_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userA     User @relation("FriendRequestUserA", fields: [userAId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userB     User @relation("FriendRequestUserB", fields: [userBId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  initiator User @relation("FriendRequestInitiator", fields: [initiatorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+  @@index([initiatorId])
+  @@map("friend_requests")
+}
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userAId   Int      @map("user_a_id")
+  userBId   Int      @map("user_b_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  userA User @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userB User @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+  @@map("friendships")
+}
+
+model Notification {
+  id          Int              @id @default(autoincrement())
+  recipientId Int              @map("recipient_id")
+  actorId     Int              @map("actor_id")
+  type        NotificationType
+  journalId   Int?             @map("journal_id")
+  isRead      Boolean          @default(false) @map("is_read")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  recipient User     @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actor     User     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  journal   Journal? @relation(fields: [journalId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([recipientId, isRead])
+  @@index([recipientId, createdAt])
+  @@index([journalId])
+  @@map("notifications")
+}
+
+model Session {
+  id          Int      @id @default(autoincrement())
+  hashedToken String   @unique @map("hashed_token") @db.VarChar(128)
+  userId      Int      @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  expiresAt   DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
