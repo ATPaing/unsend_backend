@@ -114,4 +114,3 @@ backend/
 
 ## License
 
-Private / unlisted — adjust as needed for your project.
