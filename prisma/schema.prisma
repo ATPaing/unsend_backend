@@ -29,6 +29,13 @@ enum NotificationType {
   @@map("notification_type")
 }
 
+enum MediaStatus {
+  PENDING @map("pending")
+  READY   @map("ready")
+
+  @@map("media_status")
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -74,7 +81,7 @@ model Journal {
   updatedAt            DateTime    @updatedAt @map("updated_at")
 
   owner         User            @relation("JournalOwner", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  media         Media[]
+  media         Media?
   accessEntries JournalAccess[]
   notifications Notification[]
 
@@ -84,21 +91,21 @@ model Journal {
 }
 
 model Media {
-  id                Int      @id @default(autoincrement())
-  journalId         Int      @map("journal_id")
-  encryptedMime     Bytes    @map("encrypted_mime")
-  mimeNonce         Bytes    @map("mime_nonce")
-  storageKey        String   @unique @map("storage_key") @db.VarChar(512)
-  encryptedFileName Bytes    @map("encrypted_file_name")
-  fileNameNonce     Bytes    @map("file_name_nonce")
-  fileNonce         Bytes    @map("file_nonce")
+  id                Int         @id @default(autoincrement())
+  journalId         Int         @unique @map("journal_id")
+  status            MediaStatus @default(PENDING)
+  encryptedMime     Bytes       @map("encrypted_mime")
+  mimeNonce         Bytes       @map("mime_nonce")
+  storageKey        String      @unique @map("storage_key") @db.VarChar(512)
+  encryptedFileName Bytes       @map("encrypted_file_name")
+  fileNameNonce     Bytes       @map("file_name_nonce")
+  fileNonce         Bytes       @map("file_nonce")
   size              Int
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
 
   journal Journal @relation(fields: [journalId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@index([journalId])
   @@map("media")
 }
 

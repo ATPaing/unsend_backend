@@ -8,9 +8,12 @@
     "dev": "node --watch src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "r2:check": "node scripts/r2-check.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1111.0",
+    "@aws-sdk/s3-request-presigner": "^3.1111.0",
     "@node-rs/argon2": "^2.0.2",
     "@prisma/client": "^6.19.0",
     "cookie-parser": "^1.4.7",

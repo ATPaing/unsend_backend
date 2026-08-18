@@ -9,6 +9,7 @@ import {
   OWNER_WRAPPED_AES_KEY_BYTES,
 } from '../config/journalLimits.js';
 import { sendToUser } from './realtime.service.js';
+import { deleteObject } from './storage.service.js';
 
 const JOURNAL_TYPES = new Set(['JOURNAL', 'T_CAPSULE']);
 
@@ -672,6 +673,25 @@ export async function updateJournalUnlockAt(userId, journalId, body) {
 
 export async function deleteJournal(userId, journalId) {
   const existing = await findOwnedJournalOrThrow(userId, journalId);
+
+  const media = await prisma.media.findUnique({
+    where: { journalId: existing.id },
+  });
+
+  if (media?.storageKey) {
+    try {
+      await deleteObject(media.storageKey);
+    } catch (error) {
+      if (error?.name === 'StorageError') {
+        throw new HttpError(
+          503,
+          'Could not delete journal media from storage',
+        );
+      }
+
+      throw error;
+    }
+  }
 
   const accessEntries = await prisma.journalAccess.findMany({
     where: { journalId: existing.id },
