@@ -4,6 +4,7 @@ import env from '../config/env.js';
 import prisma from '../lib/prisma.js';
 import { HttpError } from '../utils/errors.js';
 import { runFixedProcess } from '../utils/runFixedProcess.js';
+import { collectNetworkVisibility } from './monitoring.network.js';
 
 /** Fixed server-side names — never taken from the HTTP request. */
 const PM2_APP_NAME = 'unsend-backend';
@@ -328,15 +329,19 @@ async function collectServiceHealth() {
 }
 
 export async function getOverview() {
-  // Start service checks immediately so they overlap with system metrics I/O.
+  // Start service/network checks immediately so they overlap with system metrics I/O.
   const servicesPromise = collectServiceHealth();
+  const networkPromise = collectNetworkVisibility();
 
   const [memory, disk] = await Promise.all([
     readMemoryFromProc(),
     readDiskUsage(),
   ]);
 
-  const services = await servicesPromise;
+  const [services, network] = await Promise.all([
+    servicesPromise,
+    networkPromise,
+  ]);
 
   return {
     system: {
@@ -349,5 +354,6 @@ export async function getOverview() {
       uptimeSeconds: Math.floor(process.uptime()),
     },
     services,
+    network,
   };
 }
