@@ -25,6 +25,7 @@ export default async function verifyUser(req, res, next) {
           select: {
             id: true,
             username: true,
+            isAdmin: true,
           },
         },
       },
@@ -46,6 +47,7 @@ export default async function verifyUser(req, res, next) {
     req.user = {
       id: session.user.id,
       username: session.user.username,
+      isAdmin: session.user.isAdmin,
     };
 
     req.session = {

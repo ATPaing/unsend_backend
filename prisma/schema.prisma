@@ -50,6 +50,7 @@ model User {
   derivedKeySalt      Bytes    @map("derived_key_salt")
   privateKeyNonce     Bytes    @map("private_key_nonce")
   cryptoVersion       Int      @default(1) @map("crypto_version")
+  isAdmin             Boolean  @default(false) @map("is_admin")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
