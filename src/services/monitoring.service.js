@@ -328,19 +328,47 @@ async function collectServiceHealth() {
   };
 }
 
+/**
+ * Total registered users = rows in the User table (Prisma count only).
+ * Failures stay in this section; never expose Prisma/SQL details.
+ */
+async function collectUserMetrics() {
+  try {
+    const total = await Promise.race([
+      prisma.user.count(),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('timeout')), PRISMA_TIMEOUT_MS);
+      }),
+    ]);
+
+    if (typeof total !== 'number' || !Number.isInteger(total) || total < 0) {
+      return serviceError('unavailable');
+    }
+
+    return { total };
+  } catch (error) {
+    if (error?.message === 'timeout') {
+      return serviceError('timeout');
+    }
+    return serviceError('unavailable');
+  }
+}
+
 export async function getOverview() {
-  // Start service/network checks immediately so they overlap with system metrics I/O.
+  // Start service/network/user checks immediately so they overlap with system metrics I/O.
   const servicesPromise = collectServiceHealth();
   const networkPromise = collectNetworkVisibility();
+  const usersPromise = collectUserMetrics();
 
   const [memory, disk] = await Promise.all([
     readMemoryFromProc(),
     readDiskUsage(),
   ]);
 
-  const [services, network] = await Promise.all([
+  const [services, network, users] = await Promise.all([
     servicesPromise,
     networkPromise,
+    usersPromise,
   ]);
 
   return {
@@ -355,5 +383,6 @@ export async function getOverview() {
     },
     services,
     network,
+    users,
   };
 }
